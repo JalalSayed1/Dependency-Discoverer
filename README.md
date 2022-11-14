@@ -45,9 +45,13 @@ if `-Ikernel` is specified on the command line, then when processing
   - The main thread (leader) places file names to be processed in the work queue.
   - Worker threads select a file name from the work queue, scan the file to discover dependencies, add these dependencies to the result Hash Map and, if new, to the work queue.
 - The key data structures, data flow, and threads in the concurrent version are shown in the figure below.
-**[IMAGE]**
+
+![image](https://user-images.githubusercontent.com/92950538/201767132-a717db1b-ceea-4e8f-a354-dc08e6a93342.png)
+
+
 - It should be possible to adjust the number of worker threads that process the accumulated work queue to speed up the processing.
 - Since the Work Queue and the Hash Map are shared between threads, a concurrency control mechanisms has been implemented to make a thread-safe access to them.
+<<<<<<< HEAD
 
 ## To test it
 
@@ -57,3 +61,5 @@ $ ../<version_folder>/dependencyDiscoverer *.y *.l *.c | diff - output
 ```
 Where output is the file containing the expected results.
 
+=======
+>>>>>>> 530c3c1746f5b26047d28dc248f0bd396693ac89
