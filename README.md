@@ -18,9 +18,11 @@
 | Idir          | indicates a directory to be searched for any include files encountered.        |
 | file.ext      | source file to be scanned for #include directives; ext must be c, y, or l.        |
 
+The usage string is
 ```
-The usage string is:   ./dependencyDiscoverer [-Idir] file1.ext [file2.ext …]
+$ ./dependencyDiscoverer [-Idir] file1.ext [file2.ext …]
 ```
+
 - **The crawler**:
   -  uses the following environment variables when it runs:
 
