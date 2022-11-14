@@ -29,7 +29,7 @@ The usage string is:   ./dependencyDiscoverer [-Idir] file1.ext [file2.ext …]
 | CRAWLER_THREADS | if this is defined, it specifies the number of **worker threads** that the application must create. </br> if it is not defined, then two worker threads should be created. |
 | CPATH | if this is defined, it contains a list of directories separated by ‘ : ’, these directories are to be searched for files specified in #include directives. </br> if it is not defined, then no additional directories are searched beyond the current directory and any specified by `–Idir` flags. |
 
-> To set an environment variable in shell, use command: </br> `% export CRAWLER_THREADS=3`
+> To set an environment variable in shell, use command: </br> `$ export CRAWLER_THREADS=3`
 
   - For example, if CPATH is `/home/user/include:/usr/local/group/include` and 
 if `-Ikernel` is specified on the command line, then when processing
@@ -48,4 +48,12 @@ if `-Ikernel` is specified on the command line, then when processing
 **[IMAGE]**
 - It should be possible to adjust the number of worker threads that process the accumulated work queue to speed up the processing.
 - Since the Work Queue and the Hash Map are shared between threads, a concurrency control mechanisms has been implemented to make a thread-safe access to them.
-- 
+
+## To test it
+
+```
+$ cd test
+$ ../<version_folder>/dependencyDiscoverer *.y *.l *.c | diff - output
+```
+Where output is the file containing the expected results.
+
