@@ -51,7 +51,6 @@ if `-Ikernel` is specified on the command line, then when processing
 
 - It should be possible to adjust the number of worker threads that process the accumulated work queue to speed up the processing.
 - Since the Work Queue and the Hash Map are shared between threads, a concurrency control mechanisms has been implemented to make a thread-safe access to them.
-<<<<<<< HEAD
 
 ## To test it
 
@@ -60,6 +59,3 @@ $ cd test
 $ ../<version_folder>/dependencyDiscoverer *.y *.l *.c | diff - output
 ```
 Where output is the file containing the expected results.
-
-=======
->>>>>>> 530c3c1746f5b26047d28dc248f0bd396693ac89
