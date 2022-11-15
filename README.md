@@ -70,17 +70,20 @@ The usage string is
 $ ./dependencyDiscoverer [-Idir] file1.ext [file2.ext …]
 ```
 
-For instance,
+For instance, if 
 ```
 $ cd <version_folder>
 $ make dependencyDiscoverer
-$ ./dependencyDiscoverer *.y *.l *.c
+$ cd <source_code_folder>
+$ <path_to_program>/dependencyDiscoverer *.y *.l *.c
 ```
 
 ## To test it
 
 ```
+$ cd <version_folder>
+$ make dependencyDiscoverer
 $ cd test
 $ ../<version_folder>/dependencyDiscoverer *.y *.l *.c | diff - output
 ```
-Where output is the file containing the expected results.
+Where output is the file containing the expected results from program.
