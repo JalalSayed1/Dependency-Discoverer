@@ -2,10 +2,20 @@
 
 ## About the project
 
-- Large-scale systems developed in C and C++ tend to include a large number of .h files, both of a system variety (enclosed in < >) and non-system (enclosed in “ ”).  The make utility and Makefiles are convenient ways to record dependencies between source files and minimise the amount of work done when the system needs to be rebuilt.
-- The work will only be minimised if the Makefile exactly captures the dependencies between source and object files.
-- Some systems are extremely large, and it is difficult to keep the dependencies in the Makefile correct as many people make changes simultaneously.  Therefore, there is a need for a program that can crawl over source files, noting any #include directives, recurse through files specified in #include directives, and finally generate the correct dependency specifications.
-- #include directives for system files (enclosed in < >) are normally NOT specified in dependencies.  Therefore, our system will focus on generating dependencies between source files and non-system #include directives (enclosed in “ ”).
+- Processes the c/yacc/lex source file arguments, outputting the dependencies between the corresponding .o file, the .c source file, and any included .h files.
+- Each .h file is also processed to yield a dependency between it and any included .h files.
+- These dependencies are written to standard output in a form compatible with make.
+- For example, assume that `foo.c` includes `inc1.h`, and `inc1.h` includes `inc2.h` and `inc3.h`; this results in
+
+```
+foo.o: foo.c inc1.h inc2.h inc3.h
+```
+
+## Background
+
+- Some systems are extremely large, and it is difficult to keep the dependencies in the Makefile correct as many people make changes simultaneously. Therefore, there is a need for a program that can crawl over source files, noting any #include directives, recurse through files specified in #include directives, and finally generate the correct dependency specifications.
+- Large-scale systems developed in C and C++ tend to include a large number of .h files, both of a system variety (enclosed in < >) and non-system (enclosed in “ ”).
+- #include directives for system files (enclosed in < >) are NOT specified in dependencies.
 
 ## Specification
 
