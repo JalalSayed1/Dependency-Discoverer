@@ -93,5 +93,5 @@ Where output is the file containing the expected results from program.
 $ cd <version_folder>
 $ make dependencyDiscoverer
 $ cd test
-diff <(../<version_folder1>/dependencyDiscoverer *.y *.l *.c) <(../<version_folder2>/dependencyDiscoverer *.y *.l *.c)
+$ diff <(../<version_folder1>/dependencyDiscoverer *.y *.l *.c) <(../<version_folder2>/dependencyDiscoverer *.y *.l *.c)
 ```
