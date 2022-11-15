@@ -65,7 +65,12 @@ if `-Ikernel` is specified on the command line, then when processing
 - Since the Work Queue and the Hash Map are shared between threads, a concurrency control mechanisms has been implemented to make a thread-safe access to them.
 
 ## How to run
+The usage string is
+```
+$ ./dependencyDiscoverer [-Idir] file1.ext [file2.ext …]
+```
 
+For instance,
 ```
 $ cd <version_folder>
 $ make dependencyDiscoverer
