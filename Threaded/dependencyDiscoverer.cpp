@@ -91,6 +91,15 @@
  * openFile()  - attempts to open a filename using the search path defined by the dirs vector.
  */
 
+/** My procedure:
+ * 1. make thread safe workQ and Hash Map data structure.
+ * 2. create "struct"  stores the "container" and "sync" (lock/mutex?) utilities.
+ * 3. provide similar interface to the container but with appropriate "synchronisation"
+ *   => to make a thread safe data structure
+ *
+ * 4.create a single thread and test results.
+ */
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,12 +111,82 @@
 #include <unordered_set>
 #include <vector>
 
+#include <pthread.h>
+
 // list of dirs:
 std::vector<std::string> dirs;
 // hash table mapping file names to a list of dependent file names:
-std::unordered_map<std::string, std::list<std::string>> theTable;
+//! std::unordered_map<std::string, std::list<std::string>> theTable;
 // list of file names that have to be processed:
-std::list<std::string> workQ;
+//! std::list<std::string> workQ;
+
+// 2. create a "struct"  stores the "container" (data structures) and "sync" (lock) utilities.
+struct ThreadSafeWorkQ {
+    std::list<std::string> workQ;
+    // lock for the workQ:
+    pthread_mutex_t workQ_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+    // 1. make thread safe workQ structure.
+    void safe_push_back(std::string s) {
+        pthread_mutex_lock(&workQ_mutex);
+        workQ.push_back(s);
+        pthread_mutex_unlock(&workQ_mutex);
+    }
+
+    int safe_size() {
+        pthread_mutex_lock(&workQ_mutex);
+        int size = workQ.size();
+        pthread_mutex_unlock(&workQ_mutex);
+        return size;
+    }
+
+    std::string safe_front() {
+        pthread_mutex_lock(&workQ_mutex);
+        std::string front = workQ.front();
+        pthread_mutex_unlock(&workQ_mutex);
+        return front;
+    }
+
+    void safe_pop_front() {
+        pthread_mutex_lock(&workQ_mutex);
+        workQ.pop_front();
+        pthread_mutex_unlock(&workQ_mutex);
+    }
+};
+
+struct ThreadSafeTheTable {
+    std::unordered_map<std::string, std::list<std::string>> theTable;
+    // lock for the theTable:
+    pthread_mutex_t theTable_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+    // 1. make thread safe theTable structure:
+    std::unordered_map<std::string, std::list<std::string>>::iterator safe_find(std::string s) {
+        pthread_mutex_lock(&theTable_mutex);
+        std::unordered_map<std::string, std::list<std::string>>::iterator it = theTable.find(s);
+        pthread_mutex_unlock(&theTable_mutex);
+        return it;
+    }
+
+// std::string s, std::list<std::string> l
+    void safe_insert(std::pair<std::string, std::list<std::string>> pair) {
+        pthread_mutex_lock(&theTable_mutex);
+        theTable.insert(pair);
+        pthread_mutex_unlock(&theTable_mutex);
+    }
+
+    // safe_end()
+    std::unordered_map<std::string, std::list<std::string>>::iterator safe_end() {
+        pthread_mutex_lock(&theTable_mutex);
+        std::unordered_map<std::string, std::list<std::string>>::iterator it = theTable.end();
+        pthread_mutex_unlock(&theTable_mutex);
+        return it;
+    }
+
+};
+
+// 3. provide similar interface to the container but with appropriate "synchronisation":
+ThreadSafeWorkQ workQ;
+ThreadSafeTheTable theTable;
 
 /**
  * @brief appends trailing '/' if needed
@@ -213,14 +292,14 @@ static void process(const char *file, std::list<std::string> *ll) {
         // 2bii. append file name to dependency list
         ll->push_back({name});
         // 2bii. if file name not already in table ...
-        if (theTable.find(name) != theTable.end()) {
+        if (theTable.safe_find(name) != theTable.safe_end()) {
             // if it already exists, continue the while loop to next line:
             continue;
         }
         // ... insert mapping from file name to empty list in table ...
-        theTable.insert({name, {}});
+        theTable.safe_insert({name, {}});
         // ... append file name to workQ
-        workQ.push_back(name);
+        workQ.safe_push_back(name);
     }
     // 3. close file
     fclose(fd);
@@ -247,7 +326,9 @@ static void printDependencies(std::unordered_set<std::string> *printed,
         toProcess->pop_front();
         // 3. lookup file in the table, yielding list of dependencies.
         // presuming the file name is in the table as it was inserted in process():
-        std::list<std::string> *ll = &theTable[name];
+        //! std::list<std::string> *ll = &theTable[name];
+        // get the list only:
+        std::list<std::string> *ll = &(theTable.safe_find(name)->second);
         // 4. iterate over dependencies of this name (filename):
         for (auto iter = ll->begin(); iter != ll->end(); iter++) {
             // 4a. if filename is already in the printed table, continue:
@@ -270,6 +351,8 @@ int main(int argc, char *argv[]) {
     // 1. look up CPATH in environment
     // set CPATH on command line, if needed, with e.g. 'export CPATH=/usr/include:/usr/local/include'
     char *cpath = getenv("CPATH");
+    // get CRAWLER_THREADS from environment, if set:
+    //! char *threads = getenv("CRAWLER_THREADS");
 
     // determine the number of -Idir arguments
     int i;
@@ -311,27 +394,29 @@ int main(int argc, char *argv[]) {
         std::string obj = pair.first + ".o";
 
         // 3a. insert mapping from file.o to file.ext
-        theTable.insert({obj, {argv[i]}});
+        theTable.safe_insert({obj, {argv[i]}});
 
         // 3b. insert mapping from file.ext to empty list
-        theTable.insert({argv[i], {}});
+        theTable.safe_insert({argv[i], {}});
 
         // 3c. append file.ext on workQ
-        workQ.push_back(argv[i]);
+        workQ.safe_push_back(argv[i]);
     }
 
     // 4. for each file on the workQ
-    while (workQ.size() > 0) {
-        std::string filename = workQ.front();
-        workQ.pop_front();
+    while (workQ.safe_size() > 0) {
+        std::string filename = workQ.safe_front();
+        workQ.safe_pop_front();
 
-        if (theTable.find(filename) == theTable.end()) {
+        if (theTable.safe_find(filename) == theTable.safe_end()) {
             fprintf(stderr, "Mismatch between table and workQ\n");
             return -1;
         }
 
         // 4a&b. lookup dependencies and invoke 'process'
-        process(filename.c_str(), &theTable[filename]);
+        //! process(filename.c_str(), &theTable[filename]);
+        // get the list only:
+        process(filename.c_str(), &(theTable.safe_find(filename)->second));
     }
 
     // 5. for each file argument
