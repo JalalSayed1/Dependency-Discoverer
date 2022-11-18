@@ -111,7 +111,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include <pthread.h>
+// #include <pthread.h>
+#include <thread>
+#include <mutex>
 
 // list of dirs:
 std::vector<std::string> dirs;
@@ -124,64 +126,80 @@ std::vector<std::string> dirs;
 struct ThreadSafeWorkQ {
     std::list<std::string> workQ;
     // lock for the workQ:
-    pthread_mutex_t workQ_mutex = PTHREAD_MUTEX_INITIALIZER;
+    //! pthread_mutex_t workQ_mutex = PTHREAD_MUTEX_INITIALIZER;
+    std::mutex workQ_mutex;
 
     // 1. make thread safe workQ structure.
     void safe_push_back(std::string s) {
-        pthread_mutex_lock(&workQ_mutex);
+        //! pthread_mutex_lock(&workQ_mutex);
+        workQ_mutex.lock();
         workQ.push_back(s);
-        pthread_mutex_unlock(&workQ_mutex);
+        workQ_mutex.unlock();
+        //! pthread_mutex_unlock(&workQ_mutex);
     }
 
     int safe_size() {
-        pthread_mutex_lock(&workQ_mutex);
+        //! pthread_mutex_lock(&workQ_mutex);
+        workQ_mutex.lock();
         int size = workQ.size();
-        pthread_mutex_unlock(&workQ_mutex);
+        workQ_mutex.unlock();
+        //! pthread_mutex_unlock(&workQ_mutex);
         return size;
     }
 
     std::string safe_front() {
-        pthread_mutex_lock(&workQ_mutex);
+        //! pthread_mutex_lock(&workQ_mutex);
+        workQ_mutex.lock();
         std::string front = workQ.front();
-        pthread_mutex_unlock(&workQ_mutex);
+        workQ_mutex.unlock();
+        //! pthread_mutex_unlock(&workQ_mutex);
         return front;
     }
 
     void safe_pop_front() {
-        pthread_mutex_lock(&workQ_mutex);
+        //! pthread_mutex_lock(&workQ_mutex);
+        workQ_mutex.lock();
         workQ.pop_front();
-        pthread_mutex_unlock(&workQ_mutex);
+        workQ_mutex.unlock();
+        //! pthread_mutex_unlock(&workQ_mutex);
     }
 };
 
 struct ThreadSafeTheTable {
     std::unordered_map<std::string, std::list<std::string>> theTable;
     // lock for the theTable:
-    pthread_mutex_t theTable_mutex = PTHREAD_MUTEX_INITIALIZER;
+    //! pthread_mutex_t theTable_mutex = PTHREAD_MUTEX_INITIALIZER;
+    std::mutex theTable_mutex;
 
     // 1. make thread safe theTable structure:
-    std::unordered_map<std::string, std::list<std::string>>::iterator safe_find(std::string s) {
-        pthread_mutex_lock(&theTable_mutex);
+    std::unordered_map<std::string, std::list<std::string>>::iterator
+    safe_find(std::string s) {
+        //! pthread_mutex_lock(&theTable_mutex);
+        theTable_mutex.lock();
         std::unordered_map<std::string, std::list<std::string>>::iterator it = theTable.find(s);
-        pthread_mutex_unlock(&theTable_mutex);
+        theTable_mutex.unlock();
+        //! pthread_mutex_unlock(&theTable_mutex);
         return it;
     }
 
-// std::string s, std::list<std::string> l
+    // std::string s, std::list<std::string> l
     void safe_insert(std::pair<std::string, std::list<std::string>> pair) {
-        pthread_mutex_lock(&theTable_mutex);
+        //! pthread_mutex_lock(&theTable_mutex);
+        theTable_mutex.lock();
         theTable.insert(pair);
-        pthread_mutex_unlock(&theTable_mutex);
+        theTable_mutex.unlock();
+        //! pthread_mutex_unlock(&theTable_mutex);
     }
 
     // safe_end()
     std::unordered_map<std::string, std::list<std::string>>::iterator safe_end() {
-        pthread_mutex_lock(&theTable_mutex);
+        //! pthread_mutex_lock(&theTable_mutex);
+        theTable_mutex.lock();
         std::unordered_map<std::string, std::list<std::string>>::iterator it = theTable.end();
-        pthread_mutex_unlock(&theTable_mutex);
+        theTable_mutex.unlock();
+        //! pthread_mutex_unlock(&theTable_mutex);
         return it;
     }
-
 };
 
 // 3. provide similar interface to the container but with appropriate "synchronisation":
@@ -403,42 +421,57 @@ int main(int argc, char *argv[]) {
         workQ.safe_push_back(argv[i]);
     }
 
-    // 4. for each file on the workQ
-    while (workQ.safe_size() > 0) {
-        std::string filename = workQ.safe_front();
-        workQ.safe_pop_front();
+    // make a thread with pthread:
+    //! pthread_t thread;
+    auto thread = std::thread([start, argc, argv]() {
 
-        if (theTable.safe_find(filename) == theTable.safe_end()) {
-            fprintf(stderr, "Mismatch between table and workQ\n");
-            return -1;
+        // 4. for each file on the workQ
+        while (workQ.safe_size() > 0) {
+            std::string filename = workQ.safe_front();
+            workQ.safe_pop_front();
+
+            if (theTable.safe_find(filename) == theTable.safe_end()) {
+                fprintf(stderr, "Mismatch between table and workQ\n");
+                //! return -1;
+            }
+
+            // 4a&b. lookup dependencies and invoke 'process'
+            //! process(filename.c_str(), &theTable[filename]);
+            // get the list only:
+            process(filename.c_str(), &(theTable.safe_find(filename)->second));
         }
 
-        // 4a&b. lookup dependencies and invoke 'process'
-        //! process(filename.c_str(), &theTable[filename]);
-        // get the list only:
-        process(filename.c_str(), &(theTable.safe_find(filename)->second));
-    }
+        int i;
+        // 5. for each file argument
+        for (i = start; i < argc; i++) {
+            // 5a. create hash table in which to track file names already printed
+            std::unordered_set<std::string> printed;
+            // 5b. create list to track dependencies yet to print
+            std::list<std::string> toProcess;
 
-    // 5. for each file argument
-    for (i = start; i < argc; i++) {
-        // 5a. create hash table in which to track file names already printed
-        std::unordered_set<std::string> printed;
-        // 5b. create list to track dependencies yet to print
-        std::list<std::string> toProcess;
+            std::pair<std::string, std::string> pair = parseFile(argv[i]);
 
-        std::pair<std::string, std::string> pair = parseFile(argv[i]);
+            std::string obj = pair.first + ".o";
+            // 5c. print "foo.o:" ...
+            printf("%s:", obj.c_str());
+            // 5c. ... insert "foo.o" into hash table and append to list
+            printed.insert(obj);
+            toProcess.push_back(obj);
+            // 5d. invoke
+            printDependencies(&printed, &toProcess, stdout);
 
-        std::string obj = pair.first + ".o";
-        // 5c. print "foo.o:" ...
-        printf("%s:", obj.c_str());
-        // 5c. ... insert "foo.o" into hash table and append to list
-        printed.insert(obj);
-        toProcess.push_back(obj);
-        // 5d. invoke
-        printDependencies(&printed, &toProcess, stdout);
+            printf("\n");
+        }
 
-        printf("\n");
-    }
+    });
+    // args: thread, attributes, function, arguments:
+    //! pthread_create(&thread, NULL, ,NULL);
+    /* end of thread 1 */
 
-    return 0;
+    // wait for the thread to finish:
+    // args: thread, return value
+    //! pthread_join(thread, NULL);
+    thread.join();
+
+    //! return 0;
 }
