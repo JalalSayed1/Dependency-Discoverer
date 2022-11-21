@@ -347,7 +347,11 @@ int main(int argc, char *argv[]) {
     char *cpath = getenv("CPATH");
 
     // get CRAWLER_THREADS from environment, if set:
-    // char *numOfThreads = getenv("CRAWLER_THREADS");
+    char *tempNumOfThreads = getenv("CRAWLER_THREADS");
+    int numOfThreads = 0;
+    if (tempNumOfThreads) {
+        numOfThreads = atoi(tempNumOfThreads);
+    }
 
     // determine the number of -Idir arguments
     int i;
@@ -398,8 +402,66 @@ int main(int argc, char *argv[]) {
         workQ.safe_push_back(argv[i]);
     }
 
-    // create a thread:
-    auto thread = std::thread([start, argc, argv]()->int {
+    if (numOfThreads > 0) {
+
+        // vector of threads:
+        std::vector<std::thread> threads;
+
+        // create a thread:
+
+        for (int i = 0; i < numOfThreads; i++) {
+
+            auto thread = std::thread([start, argc, argv]() -> int {
+                // 4. for each file on the workQ
+                while (workQ.safe_size() > 0) {
+                    std::string filename = workQ.safe_front();
+                    workQ.safe_pop_front();
+
+                    if (theTable.safe_find(filename) == theTable.safe_end()) {
+                        fprintf(stderr, "Mismatch between table and workQ\n");
+                        return -1;
+                    }
+
+                    // 4a&b. lookup dependencies and invoke 'process'
+                    // get the list only:
+                    process(filename.c_str(), &(theTable.safe_find(filename)->second));
+                }
+
+                int i;
+                // 5. for each file argument
+                for (i = start; i < argc; i++) {
+                    // 5a. create hash table in which to track file names already printed
+                    std::unordered_set<std::string> printed;
+                    // 5b. create list to track dependencies yet to print
+                    std::list<std::string> toProcess;
+
+                    std::pair<std::string, std::string> pair = parseFile(argv[i]);
+
+                    std::string obj = pair.first + ".o";
+                    // 5c. print "foo.o:" ...
+                    printf("%s:", obj.c_str());
+                    // 5c. ... insert "foo.o" into hash table and append to list
+                    printed.insert(obj);
+                    toProcess.push_back(obj);
+                    // 5d. invoke
+                    printDependencies(&printed, &toProcess, stdout);
+
+                    printf("\n");
+                }
+                return 0;
+            });
+
+            threads.push_back(std::move(thread));
+        }
+        /* end of thread 1 */
+
+        // wait for the thread to finish:
+        for (auto &thread : threads) {
+            thread.join();
+        }
+
+    // if no threads are specified, run the code sequentially:
+    } else {
         // 4. for each file on the workQ
         while (workQ.safe_size() > 0) {
             std::string filename = workQ.safe_front();
@@ -436,13 +498,7 @@ int main(int argc, char *argv[]) {
 
             printf("\n");
         }
-        return 0;
-    });
-
-    /* end of thread 1 */
-
-    // wait for the thread to finish:
-    thread.join();
+    }
 
     return 0;
 }
