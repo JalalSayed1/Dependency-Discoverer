@@ -91,15 +91,6 @@
  * openFile()  - attempts to open a filename using the search path defined by the dirs vector.
  */
 
-/** My procedure:
- * 1. make thread safe workQ and Hash Map data structure.
- * 2. create "struct"  stores the "container" and "sync" (lock/mutex?) utilities.
- * 3. provide similar interface to the container but with appropriate "synchronisation"
- *   => to make a thread safe data structure
- *
- * 4.create a single thread and test results.
- */
-
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -119,10 +110,13 @@ std::vector<std::string> dirs;
 
 // 2. create a "struct"  stores the "container" (data structures) and "sync" (lock) utilities:
 struct ThreadSafeWorkQ {
+
+private:
     std::list<std::string> workQ;
     // lock for the workQ:
     std::mutex workQ_mutex;
 
+public:
     // 1. make thread safe workQ structure.
     void safe_push_back(std::string s) {
         workQ_mutex.lock();
@@ -152,15 +146,17 @@ struct ThreadSafeWorkQ {
 };
 
 struct ThreadSafeTheTable {
+
+private:
     std::unordered_map<std::string, std::list<std::string>> theTable;
     // lock for the theTable:
     std::mutex theTable_mutex;
 
+public:
     // 1. make thread safe theTable structure:
-    std::unordered_map<std::string, std::list<std::string>>::iterator
-    safe_find(std::string s) {
+    auto safe_find(std::string s) {
         theTable_mutex.lock();
-        std::unordered_map<std::string, std::list<std::string>>::iterator it = theTable.find(s);
+        auto it = theTable.find(s);
         theTable_mutex.unlock();
         return it;
     }
@@ -171,9 +167,9 @@ struct ThreadSafeTheTable {
         theTable_mutex.unlock();
     }
 
-    std::unordered_map<std::string, std::list<std::string>>::iterator safe_end() {
+    auto safe_end() {
         theTable_mutex.lock();
-        std::unordered_map<std::string, std::list<std::string>>::iterator it = theTable.end();
+        auto it = theTable.end();
         theTable_mutex.unlock();
         return it;
     }
@@ -460,7 +456,7 @@ int main(int argc, char *argv[]) {
             thread.join();
         }
 
-    // if no threads are specified, run the code sequentially:
+        // if no threads are specified, run the code sequentially:
     } else {
         // 4. for each file on the workQ
         while (workQ.safe_size() > 0) {
