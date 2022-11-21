@@ -111,93 +111,70 @@
 #include <unordered_set>
 #include <vector>
 
-// #include <pthread.h>
-#include <thread>
 #include <mutex>
+#include <thread>
 
 // list of dirs:
 std::vector<std::string> dirs;
-// hash table mapping file names to a list of dependent file names:
-//! std::unordered_map<std::string, std::list<std::string>> theTable;
-// list of file names that have to be processed:
-//! std::list<std::string> workQ;
 
-// 2. create a "struct"  stores the "container" (data structures) and "sync" (lock) utilities.
+// 2. create a "struct"  stores the "container" (data structures) and "sync" (lock) utilities:
 struct ThreadSafeWorkQ {
     std::list<std::string> workQ;
     // lock for the workQ:
-    //! pthread_mutex_t workQ_mutex = PTHREAD_MUTEX_INITIALIZER;
     std::mutex workQ_mutex;
 
     // 1. make thread safe workQ structure.
     void safe_push_back(std::string s) {
-        //! pthread_mutex_lock(&workQ_mutex);
         workQ_mutex.lock();
         workQ.push_back(s);
         workQ_mutex.unlock();
-        //! pthread_mutex_unlock(&workQ_mutex);
     }
 
     int safe_size() {
-        //! pthread_mutex_lock(&workQ_mutex);
         workQ_mutex.lock();
         int size = workQ.size();
         workQ_mutex.unlock();
-        //! pthread_mutex_unlock(&workQ_mutex);
         return size;
     }
 
     std::string safe_front() {
-        //! pthread_mutex_lock(&workQ_mutex);
         workQ_mutex.lock();
         std::string front = workQ.front();
         workQ_mutex.unlock();
-        //! pthread_mutex_unlock(&workQ_mutex);
         return front;
     }
 
     void safe_pop_front() {
-        //! pthread_mutex_lock(&workQ_mutex);
         workQ_mutex.lock();
         workQ.pop_front();
         workQ_mutex.unlock();
-        //! pthread_mutex_unlock(&workQ_mutex);
     }
 };
 
 struct ThreadSafeTheTable {
     std::unordered_map<std::string, std::list<std::string>> theTable;
     // lock for the theTable:
-    //! pthread_mutex_t theTable_mutex = PTHREAD_MUTEX_INITIALIZER;
     std::mutex theTable_mutex;
 
     // 1. make thread safe theTable structure:
     std::unordered_map<std::string, std::list<std::string>>::iterator
     safe_find(std::string s) {
-        //! pthread_mutex_lock(&theTable_mutex);
         theTable_mutex.lock();
         std::unordered_map<std::string, std::list<std::string>>::iterator it = theTable.find(s);
         theTable_mutex.unlock();
-        //! pthread_mutex_unlock(&theTable_mutex);
         return it;
     }
 
-    // std::string s, std::list<std::string> l
     void safe_insert(std::pair<std::string, std::list<std::string>> pair) {
-        //! pthread_mutex_lock(&theTable_mutex);
         theTable_mutex.lock();
         theTable.insert(pair);
         theTable_mutex.unlock();
-        //! pthread_mutex_unlock(&theTable_mutex);
     }
 
-    // safe_end()
     std::unordered_map<std::string, std::list<std::string>>::iterator safe_end() {
-        //! pthread_mutex_lock(&theTable_mutex);
         theTable_mutex.lock();
         std::unordered_map<std::string, std::list<std::string>>::iterator it = theTable.end();
         theTable_mutex.unlock();
-        //! pthread_mutex_unlock(&theTable_mutex);
         return it;
     }
 };
@@ -344,7 +321,6 @@ static void printDependencies(std::unordered_set<std::string> *printed,
         toProcess->pop_front();
         // 3. lookup file in the table, yielding list of dependencies.
         // presuming the file name is in the table as it was inserted in process():
-        //! std::list<std::string> *ll = &theTable[name];
         // get the list only:
         std::list<std::string> *ll = &(theTable.safe_find(name)->second);
         // 4. iterate over dependencies of this name (filename):
@@ -369,8 +345,9 @@ int main(int argc, char *argv[]) {
     // 1. look up CPATH in environment
     // set CPATH on command line, if needed, with e.g. 'export CPATH=/usr/include:/usr/local/include'
     char *cpath = getenv("CPATH");
+
     // get CRAWLER_THREADS from environment, if set:
-    //! char *threads = getenv("CRAWLER_THREADS");
+    // char *numOfThreads = getenv("CRAWLER_THREADS");
 
     // determine the number of -Idir arguments
     int i;
@@ -421,10 +398,8 @@ int main(int argc, char *argv[]) {
         workQ.safe_push_back(argv[i]);
     }
 
-    // make a thread with pthread:
-    //! pthread_t thread;
-    auto thread = std::thread([start, argc, argv]() {
-
+    // create a thread:
+    auto thread = std::thread([start, argc, argv]()->int {
         // 4. for each file on the workQ
         while (workQ.safe_size() > 0) {
             std::string filename = workQ.safe_front();
@@ -432,11 +407,10 @@ int main(int argc, char *argv[]) {
 
             if (theTable.safe_find(filename) == theTable.safe_end()) {
                 fprintf(stderr, "Mismatch between table and workQ\n");
-                //! return -1;
+                return -1;
             }
 
             // 4a&b. lookup dependencies and invoke 'process'
-            //! process(filename.c_str(), &theTable[filename]);
             // get the list only:
             process(filename.c_str(), &(theTable.safe_find(filename)->second));
         }
@@ -462,16 +436,13 @@ int main(int argc, char *argv[]) {
 
             printf("\n");
         }
-
+        return 0;
     });
-    // args: thread, attributes, function, arguments:
-    //! pthread_create(&thread, NULL, ,NULL);
+
     /* end of thread 1 */
 
     // wait for the thread to finish:
-    // args: thread, return value
-    //! pthread_join(thread, NULL);
     thread.join();
 
-    //! return 0;
+    return 0;
 }
